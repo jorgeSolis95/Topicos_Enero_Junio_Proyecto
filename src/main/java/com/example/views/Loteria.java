@@ -1,316 +1,379 @@
 package com.example.views;
 
-import com.example.events.EventoLoteria;
-import javafx.event.Event;
+import com.example.funcionLoteria.Card;
+import javafx.animation.KeyFrame;
+import javafx.animation.KeyValue;
+import javafx.animation.Timeline;
+import javafx.application.Platform;
+import javafx.beans.property.IntegerProperty;
+import javafx.beans.property.SimpleIntegerProperty;
 import javafx.event.EventHandler;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.Scene;
+import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
-import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
+import javafx.scene.text.Font;
+import javafx.scene.text.Text;
 import javafx.stage.Stage;
+import javafx.util.Duration;
 
-import java.io.File;
-import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Timer;
+import java.util.TimerTask;
 
-public class Loteria extends Stage implements EventHandler {
+public class Loteria extends Stage {
+    private Scene scene;
+    private VBox v_box_container, v_box_board, v_box_card;
+    private HBox h_box_title, h_box_buttons, h_box_timer, h_box2, h_box3;
+    private Button btn_prev, btn_next, btn_play;
+    private Label lbl_time;
+    private GridPane gdp_board, gdp_card;
+    private ImageView image_view;
+    private Font font;
+    private Text title;
+    private Timeline time_line;
+    private final Timer timer = new Timer();
 
-    private VBox vBox;
-    private HBox hBox1,hBox2;
-    private Button btnSiguiente,btnAtras,btnJugar;
-    private Label lblTiempo;
-    private GridPane gdpPlantilla;
-    private Image imgCarta;
-    private Scene escena;
-    private File file;
-    int  cont=1;
+    /**
+     * Define el número actual de la plantilla en uso.
+     **/
+    private int current_board = 0;
 
-    //private String[] arImaLoteria={"1gallo.jpg","2Diablo.jpg","3Dama.jpg","4Catrin.jpg","5Paraguas.jpg","6Sirena.jpg"
-    //,"7Escalera.jpg","8Botella.jpg","9Barril.jpg","10Arbol.jpg","11Melon.jpg","12Valiente.jpg","13Gorro.jpg","14Muerte.jpg"
-    //,"15Pera.jpg","16Bandera.jpg"};
-    ArrayList<String> arImaLoteria=new ArrayList<>();
-    ArrayList<String> arImaLoteria2=new ArrayList<>();
-    ArrayList<String> arImaLoteria3=new ArrayList<>();
-    ArrayList<String> arImaLoteria4=new ArrayList<>();
-    ArrayList<String> arImaLoteria5=new ArrayList<>();
+    /**
+     * Define el número actual de la carta mostrada en el mazo.
+     **/
+    private int current_card_image = 0;
 
-    private String[] arImagenes={"39Nopal.png","botella.jpeg","catrin.jpeg","chavorruco.jpeg","concha.jpeg","graduada.jpeg","luchador.jpeg","maceta.jpeg"};
-    private Button[][] arBtnPlantilla=new Button[4][4];
-    private Image imgCartP;
-    private ImageView imv;
+    /**
+     * Proporciona los datos de la carta actual que se muestra en el mazo.
+     **/
+    private Card current_card_data;
 
+    /**
+     * Indica si el juego está activo o ya ha comenzado, por defecto está inactivo.
+     **/
+    private boolean is_active = false;
 
-    public Loteria(){
-        CrearUI();
-        this.setTitle("Escena");
-        this.setScene(escena);
+    private final Integer START_TIME = 3;
+    private final IntegerProperty time_seconds = new SimpleIntegerProperty(START_TIME);
+
+    private final Card[] CARDS = LoteriaImages.getRandomCards();
+
+    public Loteria() {
+        createUI();
+        this.setTitle("Lotería Mexicana");
+        this.setMaximized(true);
+        this.setScene(scene);
         this.show();
     }
 
-    private void CrearUI() {
-        //area de seleccion de plantilla
-        LlenadoArray();
-        btnAtras=new Button("Atras");
-        btnAtras.addEventHandler(MouseEvent.MOUSE_CLICKED, new EventHandler<MouseEvent>() {
+    private void createUI() {
+        // Título.
+        font = Font.loadFont("file:src/main/resources/fonts/Lobster-Regular.ttf", 64);
+        title = new Text("Juego Lotería Mexicana");
+        title.setFont(font);
+        title.setFill(Color.rgb(208, 71, 100));
+
+        // HBox contenedor del título.
+        h_box_title = new HBox();
+        h_box_title.setAlignment(Pos.CENTER);
+        h_box_title.setPadding(new Insets(15, 0, 15, 0));
+        h_box_title.getChildren().add(title);
+
+        // Botón regresar a la plantilla anterior.
+        btn_prev = new Button("Atrás");
+        btn_prev.addEventHandler(MouseEvent.MOUSE_CLICKED, new EventHandler<MouseEvent>() {
             @Override
-            public void handle(MouseEvent event) {
-                cont--;
-                System.out.println(cont);
-                    switch (cont){
-                        case 0:
-                            cont=5;
-                            CrearPlantilla5();
-                            break;
-                        case 1:
-                            CrearPlantilla();
-                            break;
-                        case 2:
-                            CrearPlantilla2();
-                            break;
-                        case 3:
-                            CrearPlantilla3();
-                            break;
-                        case 4:
-                            CrearPlantilla4();
-                            break;
-                        case 5:
-                            CrearPlantilla5();
-                            break;
-                        case 6:
-                            cont=1;
-                            CrearPlantilla();
-                            break;
-                    }
+            public void handle(MouseEvent mouseEvent) {
+                prevBoard();
             }
         });
-        btnAtras.setPrefWidth(100);
-
-        btnSiguiente=new Button("Siguiente");
-        btnSiguiente.setPrefWidth(100);
-        btnSiguiente.addEventHandler(MouseEvent.MOUSE_CLICKED, new EventHandler<MouseEvent>() {
+        btn_prev.setPrefWidth(100);
+        // Botón ir a la plantilla siguiente.
+        btn_next = new Button("Siguiente");
+        btn_next.addEventHandler(MouseEvent.MOUSE_CLICKED, new EventHandler<MouseEvent>() {
             @Override
-            public void handle(MouseEvent event) {
-                cont++;
-                switch (cont) {
-                    case 0 -> {
-                        cont = 5;
-                        CrearPlantilla5();
-                    }
-                    case 1 -> CrearPlantilla();
-                    case 2 -> CrearPlantilla2();
-                    case 3 -> CrearPlantilla3();
-                    case 4 -> CrearPlantilla4();
-                    case 5 -> CrearPlantilla5();
-                    case 6 -> {
-                        cont = 1;
-                        CrearPlantilla();
-                    }
+            public void handle(MouseEvent mouseEvent) {
+                nextBoard();
+            }
+        });
+        btn_next.setPrefWidth(100);
+
+        // Marcador de tiempo para cambiar de carta.
+        lbl_time = new Label();
+        lbl_time.textProperty().bind(time_seconds.asString());
+
+        // Contenedor del contador de tiempo (label_time).
+        h_box_timer = new HBox();
+        h_box_timer.setAlignment(Pos.CENTER);
+        h_box_timer.getChildren().add(lbl_time);
+
+        // Contenedor de botones 'siguiente' y 'atrás'.
+        h_box_buttons = new HBox();
+        h_box_buttons.setSpacing(5);
+        h_box_buttons.setAlignment(Pos.CENTER);
+        h_box_buttons.getChildren().addAll(btn_prev, btn_next);
+
+        // GridPane para las plantillas.
+        gdp_board = new GridPane();
+        gdp_board.setPadding(new Insets(15, 15, 15, 15));
+        gdp_board.setHgap(15);
+        gdp_board.setVgap(15);
+
+        // Contenedor de las plantillas y los botones 'siguiente' y 'atrás'.
+        v_box_board = new VBox();
+        v_box_board.getChildren().addAll(h_box_buttons, gdp_board);
+
+        // GridPane para las cartas.
+        gdp_card = new GridPane();
+        gdp_card.setPadding(new Insets(15, 15, 15, 15));
+        gdp_card.setHgap(15);
+        gdp_card.setVgap(15);
+
+        // Contenedor del mazo y del timer para cambiar de carta.
+        v_box_card = new VBox();
+        v_box_card.getChildren().addAll(h_box_timer, gdp_card);
+
+        // Muestra la primera plantilla (0).
+        renderBoard();
+
+        // Muestra la primera carta del mazo (0).
+        renderCard();
+
+        // Contenedor de las plantillas, cartas y sus controladores.
+        h_box2 = new HBox();
+        h_box2.setAlignment(Pos.CENTER);
+        h_box2.getChildren().addAll(v_box_board, v_box_card);
+
+        // Botón jugar.
+        // Empieza a sacar las cartas del mazo y deshabilita el botón cuando este es presionado. Así mismo,
+        // deshabilita los botones 'Atrás' y 'Siguiente', esto para evitar poder cambiar de plantilla durante el
+        // transcurso del juego.
+        btn_play = new Button("Jugar");
+        btn_play.addEventHandler(MouseEvent.MOUSE_CLICKED, new EventHandler<MouseEvent>() {
+            @Override
+            public void handle(MouseEvent mouseEvent) {
+                is_active = true;
+                btn_play.setDisable(true);
+                h_box_buttons.setDisable(true);
+
+                changeCardTimer();
+            }
+        });
+        btn_play.setPrefWidth(250);
+
+        // Contenedor del botón jugar.
+        h_box3 = new HBox();
+        h_box3.setSpacing(5);
+        h_box3.setAlignment(Pos.CENTER);
+        h_box3.getChildren().addAll(btn_play);
+
+        // Layout principal.
+        // Contiene el título, plantillas, cartas y sus respectivos botones.
+        v_box_container = new VBox();
+        v_box_container.getStyleClass().add("bg-3");
+        v_box_container.getChildren().addAll(h_box_title, h_box2, h_box3);
+
+        // Ventana principal.
+        scene = new Scene(v_box_container, 800, 600);
+        // Hoja de estilos CSS.
+        scene.getStylesheets().add(String.valueOf(this.getClass().getResource("/style.css")));
+    }
+
+    /**
+     * Muestra en pantalla la plantilla del número actual con la ayuda de un GridPane.
+     *
+     * Las plantillas se obtienen de la clase LoteriaImages previamente ya definidas las plantillas con su
+     * respectivo objeto carta (Card), el cual servirá para poder comparar cartas posteriormente.
+     *
+     * Dentro de la clase Card se guardan datos como la posición donde se encuentra ubicada la carta en la plantilla,
+     * así como el índice en el que este fue agregado a la plantilla.
+     *
+     * Al momento de seleccionar una carta de la plantilla se lanzará el método para comparar las cartas actuales.
+     **/
+    private void renderBoard() {
+        // row y col establecen la posición de una carta dentro de la plantilla.
+        // counter se encarga de iterar el número de cartas añadidas a la plantilla.
+        int row = 0, col = 0, counter = 0;
+
+        gdp_board.getChildren().clear();
+
+        for (Card card : LoteriaImages.BOARDS[current_board]) {
+            // Al llegar a la cuarta fila se pasa a la siguiente columna desde la fila 0 nuevamente.
+            if (row == 4) {
+                col++;
+                row = 0;
+            }
+
+            // Se establecen los datos de la carta dentro de la plantilla.
+            card.setIndexCardAdded(counter);
+            card.setCardCoords(col, row);
+
+            image_view = new ImageView(card.getImage());
+            image_view.setFitWidth(70);
+            image_view.setFitHeight(120);
+            image_view.addEventHandler(MouseEvent.MOUSE_CLICKED, new EventHandler<MouseEvent>() {
+                @Override
+                public void handle(MouseEvent mouseEvent) {
+                    if (is_active) handleCardClicked(card);
+                }
+            });
+
+            gdp_board.add(image_view, col, row);
+
+            // Por cada iteración las filas aumentan hasta llegar a 4.
+            row++;
+            // El contador de cartas aumenta.
+            counter++;
+        }
+    }
+
+    /**
+     * Llama al método validateCards y, en caso de que la igualdad sea verdadera, reescribe el GridPane solamente en la
+     * posición donde se encuentra la carta seleccionada, inhabilitando a la misma. Posteriormente verifica si la
+     * plantilla actual cuenta con todas sus cartas deshabilitadas, lo cual quiere decir que la plantilla ya ha ganado
+     * y el juego ha terminado, mostrando así un mensaje de victoria.
+     *
+     * En caso contrario, si la carta seleccionada no es igual a la carta mostrada en el mazo, solamente mostrará un
+     * mensaje por pantalla.
+     *
+     * @param card_clicked objeto Card con la información de la carta que fue seleccionada.
+     **/
+    private void handleCardClicked(Card card_clicked) {
+        if (validateCards(card_clicked)) {
+            LoteriaImages.disableSelectedCard(card_clicked, current_board);
+
+            image_view = new ImageView(LoteriaImages.getDisableCard().getImage());
+            image_view.setFitWidth(70);
+            image_view.setFitHeight(120);
+
+            gdp_board.add(image_view, card_clicked.getAxisX(), card_clicked.getAxisY());
+
+            if (checkIfUserWon()) {
+                timer.cancel();
+                time_line.stop();
+                is_active = false;
+                btn_play.setText("Juego terminado");
+                showWinnerMessage();
+            }
+        } else {
+            System.out.println("Card not match.");
+            timer.cancel();
+            time_line.stop();
+            is_active = false;
+            Alert alert=new Alert(Alert.AlertType.CONFIRMATION);
+            alert.setTitle("Perdio el juego");
+            alert.setContentText("Gracias por participar en la Loteria");
+            alert.show();
+            btn_play.setText("Juego terminado");
+        }
+    }
+
+    private void prevBoard() {
+        current_board--;
+
+        if (current_board < 0) current_board = 4;
+
+        renderBoard();
+    }
+
+
+    private void nextBoard() {
+        current_board++;
+
+        if (current_board > 4) current_board = 0;
+
+        renderBoard();
+    }
+
+    private void renderCard() {
+        image_view = new ImageView((CARDS[current_card_image].getImage()));
+        image_view.setFitWidth(320);
+        image_view.setFitHeight(525);
+        gdp_card.add(image_view, 0, 0);
+
+        current_card_data = CARDS[current_card_image];
+    }
+
+
+    private void changeCard() {
+        current_card_image++;
+
+        renderCard();
+    }
+
+    private Boolean validateCards(Card board_card) {
+        return board_card.equals(current_card_data);
+    }
+
+    private void startCountDownTimer() {
+        if (time_line != null) time_line.stop();
+
+        time_seconds.set(START_TIME);
+
+        time_line = new Timeline();
+        time_line.getKeyFrames().add(
+                new KeyFrame(Duration.seconds(START_TIME + 1),
+                        new KeyValue(time_seconds, 0))
+        );
+        time_line.playFromStart();
+    }
+
+
+    private void changeCardTimer() {
+        TimerTask task = new TimerTask() {
+            @Override
+            public void run() {
+                if (current_card_image < CARDS.length - 1) {
+                    Platform.runLater(() -> {
+                        changeCard();
+
+                        startCountDownTimer();
+                    });
+                } else {
+                    Platform.runLater(() -> {
+                        timer.cancel();
+                        is_active = false;
+                        btn_play.setText("Juego terminado");
+                        showGameOverMessage();
+                    });
                 }
             }
-        });
-        lblTiempo=new Label("00:00");
-        hBox1=new HBox();
-        hBox1.getChildren().addAll(btnAtras,btnSiguiente,lblTiempo);
+        };
 
-        gdpPlantilla=new GridPane();
-        CrearPlantilla();
-        hBox2=new HBox();
-        hBox2.getChildren().addAll(gdpPlantilla);
-
-        btnJugar=new Button("Jugar");
-        btnJugar.addEventHandler(MouseEvent.MOUSE_CLICKED,this);
-        btnJugar.setPrefWidth(250);
-
-        vBox=new VBox();
-        vBox.setSpacing(5);
-        vBox.getChildren().addAll(hBox1,hBox2,btnJugar);
-
-
-        escena=new Scene(vBox, 650,630);
+        timer.scheduleAtFixedRate(task, 0, 3000);
     }
 
-    private void LlenadoArray() {
-        arImaLoteria.add("1gallo.jpg");
-        arImaLoteria.add("2Diablo.jpg");
-        arImaLoteria.add("3Dama.jpg");
-        arImaLoteria.add("4Catrin.jpg");
-        arImaLoteria.add("5Paraguas.jpg");
-        arImaLoteria.add("6Sirena.jpg");
-        arImaLoteria.add("7Escalera.jpg");
-        arImaLoteria.add("8Botella.jpg");
-        arImaLoteria.add("9Barril.jpg");
-        arImaLoteria.add("10Arbol.jpg");
-        arImaLoteria.add("11Melon.jpg");
-        arImaLoteria.add("12Valiente.jpg");
-        arImaLoteria.add("13Gorro.jpg");
-        arImaLoteria.add("14Muerte.jpg");
-        arImaLoteria.add("15Pera.jpg");
-        arImaLoteria.add("16Bandera.jpg");
-        arImaLoteria.add("17Bandolon.jpg");
-        arImaLoteria.add("18Violoncello.jpg");
-        arImaLoteria.add("19Garza.jpg");
-        arImaLoteria.add("20Pajaro.jpg");
-        arImaLoteria.add("21Mano.jpg");
-        arImaLoteria.add("22Bota.jpg");
-        arImaLoteria.add("23Luna.jpg");
-        arImaLoteria.add("24Cotorro.jpg");
-        arImaLoteria.add("25Borracho.jpg");
-        arImaLoteria.add("26Negrito.jpg");
-        arImaLoteria.add("27Corazon.jpg");
-        arImaLoteria.add("28Sandia.jpg");
-        arImaLoteria.add("29Tambor.jpg");
-        arImaLoteria.add("30Camaron.jpg");
-        arImaLoteria.add("31Jaras.jpg");
-        arImaLoteria.add("32Musico.jpg");
-        arImaLoteria.add("33Araña.jpg");
-        arImaLoteria.add("34Soldado.jpg");
-        arImaLoteria.add("35Estrella.jpg");
-        arImaLoteria.add("36Cazo.jpg");
-        arImaLoteria.add("37Mundo.jpg");
-        arImaLoteria.add("38Apache.jpg");
-        arImaLoteria.add("39Nopal.png");
-        arImaLoteria.add("40Alacran.jpg");
-        arImaLoteria.add("41Rosa.jpg");
-        arImaLoteria.add("42Calavera.jpg");
-        arImaLoteria.add("43Campana.jpg");
-        arImaLoteria.add("44Cantarito.jpg");
-        arImaLoteria.add("45Venado.jpg");
-        arImaLoteria.add("46Sol.jpg");
-        arImaLoteria.add("47Corona.jpg");
-        arImaLoteria.add("48Chalupa.jpg");
-        arImaLoteria.add("49Pino.jpg");
-        arImaLoteria.add("50Pescado.jpg");
-        arImaLoteria.add("51Palma.jpg");
-        arImaLoteria.add("52Maceta.jpg");
-        arImaLoteria.add("53Arpa.jpg");
-        arImaLoteria.add("54Rana.jpg");
-        arImaLoteria2.addAll(arImaLoteria);
-        arImaLoteria3.addAll(arImaLoteria);
-        arImaLoteria4.addAll(arImaLoteria);
-        arImaLoteria5.addAll(arImaLoteria);
-        Collections.shuffle(arImaLoteria);
-        Collections.shuffle(arImaLoteria2);
-        Collections.shuffle(arImaLoteria3);
-        Collections.shuffle(arImaLoteria4);
-        Collections.shuffle(arImaLoteria5);
-    }
 
-    private void CrearPlantilla() {
-        System.out.println(arImaLoteria2);
-        System.out.println(arImaLoteria3);
-        System.out.println(arImaLoteria4);
-        System.out.println(arImaLoteria5);
-        int con=0;
-        for (int i=0;i<4;i++){
-            for (int j=0;j<4;j++){
-                arBtnPlantilla[j][i]=new Button();
-                file = new File("src/main/resources/images/" + arImaLoteria.get(con));
-                imgCartP= new Image(file.toURI().toString());
-                imv= new ImageView(imgCartP);
-                imv.setFitWidth(70);
-                imv.setFitHeight(120);
-                arBtnPlantilla[j][i].setGraphic(imv);
-                gdpPlantilla.add(arBtnPlantilla[j][i],i,j);
-                con ++;
-            }
+    private boolean checkIfUserWon() {
+        int disabled_cards = 0;
+
+        for (Card card : LoteriaImages.BOARDS[current_board]) {
+            if (card.getStatusCard()) disabled_cards++;
         }
-    }
-    private void CrearPlantilla2() {
-        System.out.println(arImaLoteria);
-        System.out.println(arImaLoteria2);
-        System.out.println(arImaLoteria3);
-        System.out.println(arImaLoteria4);
-        System.out.println(arImaLoteria5);
-        int con=0;
-        for (int i=0;i<arBtnPlantilla.length;i++){
-            for (int j = 0; j<arBtnPlantilla[i].length; j++){
-                file = new File("src/main/resources/images/" + arImaLoteria2.get(con));
-                imgCartP= new Image(file.toURI().toString());
-                imv= new ImageView(imgCartP);
-                imv.setFitWidth(70);
-                imv.setFitHeight(120);
-                arBtnPlantilla[j][i].setGraphic(imv);
-                gdpPlantilla.add(arBtnPlantilla[j][i],i,j);
-                con ++;
-            }
-        }
-        System.out.println(arBtnPlantilla);
-    }
-    private void CrearPlantilla3() {
-        System.out.println(arImaLoteria);
-        System.out.println(arImaLoteria2);
-        System.out.println(arImaLoteria3);
-        System.out.println(arImaLoteria4);
-        System.out.println(arImaLoteria5);
-        int con=0;
-        for (int i=0;i<4;i++){
-            for (int j=0;j<4;j++){
-                arBtnPlantilla[j][i]=new Button();
-                file = new File("src/main/resources/images/" + arImaLoteria3.get(con));
-                imgCartP= new Image(file.toURI().toString());
-                imv= new ImageView(imgCartP);
-                imv.setFitWidth(70);
-                imv.setFitHeight(120);
-                arBtnPlantilla[j][i].setGraphic(imv);
-                gdpPlantilla.add(arBtnPlantilla[j][i],i,j);
 
-                con ++;
-            }
-        }
+        return disabled_cards == LoteriaImages.BOARDS[0].length;
     }
-    private void CrearPlantilla4() {
-        System.out.println(arImaLoteria);
-        System.out.println(arImaLoteria2);
-        System.out.println(arImaLoteria3);
-        System.out.println(arImaLoteria4);
-        System.out.println(arImaLoteria5);
-        int con=0;
-        for (int i=0;i<4;i++){
-            for (int j=0;j<4;j++){
-                arBtnPlantilla[j][i]=new Button();
-                file = new File("src/main/resources/images/" + arImaLoteria4.get(con));
-                imgCartP= new Image(file.toURI().toString());
-                imv= new ImageView(imgCartP);
-                imv.setFitWidth(70);
-                imv.setFitHeight(120);
-                arBtnPlantilla[j][i].setGraphic(imv);
-                gdpPlantilla.add(arBtnPlantilla[j][i],i,j);
 
-                con ++;
-            }
-        }
-    }
-    private void CrearPlantilla5() {
-        System.out.println(arImaLoteria);
-        System.out.println(arImaLoteria2);
-        System.out.println(arImaLoteria3);
-        System.out.println(arImaLoteria4);
-        System.out.println(arImaLoteria5);
-        int con=0;
-        for (int i=0;i<4;i++){
-            for (int j=0;j<4;j++){
-                arBtnPlantilla[j][i]=new Button();
-                file = new File("src/main/resources/images/" + arImaLoteria5.get(con));
-                imgCartP= new Image(file.toURI().toString());
-                imv= new ImageView(imgCartP);
-                imv.setFitWidth(70);
-                imv.setFitHeight(120);
-                arBtnPlantilla[j][i].setGraphic(imv);
-                gdpPlantilla.add(arBtnPlantilla[j][i],i,j);
-
-                con ++;
-            }
-        }
+    private void showWinnerMessage() {
+        Alert alert=new Alert(Alert.AlertType.CONFIRMATION);
+        alert.setTitle("Gano el juego");
+        alert.setContentText("Felicidades Gano la Loteria");
+        alert.show();
     }
 
 
-    @Override
-    public void handle(Event event) {
-        System.out.println("Mi primer evento covifest :");
+    private void showGameOverMessage() {
+        Alert alert=new Alert(Alert.AlertType.CONFIRMATION);
+        alert.setTitle("Perdio el juego");
+        alert.setContentText("Gracias por participar en la Loteria");
+        alert.show();
     }
 }
